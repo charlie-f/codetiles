@@ -74,3 +74,7 @@ docs/                      README images
 ```
 
 A Windows version is planned.
+
+## License
+
+[MIT](LICENSE)
