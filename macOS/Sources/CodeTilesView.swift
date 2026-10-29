@@ -1,4 +1,7 @@
 import ScreenSaver
+import os
+
+private let logger = Logger(subsystem: Bundle(for: CodeTilesView.self).bundleIdentifier ?? "CodeTiles", category: "saver")
 
 private struct Tile {
     let cell: Int
@@ -41,7 +44,7 @@ final class CodeTilesView: ScreenSaverView {
     private var labels: [Label] = []
     private var lastFrame: CFTimeInterval = 0
     private var spawnBudget = 0.0
-    private lazy var config = ConfigController()
+    private var config: ConfigController?
     private static var pendingExit: DispatchWorkItem?
 
     override init?(frame: NSRect, isPreview: Bool) {
@@ -76,6 +79,7 @@ final class CodeTilesView: ScreenSaverView {
     }
 
     @objc private func screenSaverWillStop(_ note: Notification) {
+        logger.notice("Screen saver stopping; host process will exit in 2 s")
         Self.pendingExit?.cancel()
         let work = DispatchWorkItem { exit(0) }
         Self.pendingExit = work
@@ -266,11 +270,16 @@ final class CodeTilesView: ScreenSaverView {
     override var hasConfigureSheet: Bool { true }
 
     override var configureSheet: NSWindow? {
-        config.show(Settings.load()) { [weak self] saved in
+        logger.notice("Options sheet requested (preview: \(self.isPreview, privacy: .public))")
+        // The System Settings host tears down the window it presented, so a reused
+        // window can't be shown again; build a fresh one every time.
+        let controller = ConfigController()
+        controller.show(Settings.load()) { [weak self] saved in
             self?.settings = saved
             self?.buildLabels()
             self?.needsDisplay = true
         }
-        return config.window
+        config = controller
+        return controller.window
     }
 }

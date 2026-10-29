@@ -1,5 +1,12 @@
 import AppKit
 
+// The System Settings screen saver host refuses to present a sheet whose window
+// reports it can't become key, so force it.
+private final class ConfigWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 final class ConfigController: NSObject {
     let window: NSWindow
 
@@ -19,13 +26,14 @@ final class ConfigController: NSObject {
     private let darkMode = NSButton(checkboxWithTitle: "Dark mode (black background)", target: nil, action: nil)
 
     override init() {
-        window = NSWindow(
+        window = ConfigWindow(
             contentRect: NSRect(x: 0, y: 0, width: 480, height: 300),
-            styleMask: [.titled],
+            styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         super.init()
+        window.isReleasedWhenClosed = false
         window.title = "Code Tiles"
         buildUI()
     }
