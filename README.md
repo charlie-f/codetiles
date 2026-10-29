@@ -15,12 +15,19 @@ A macOS screen saver of coloured tiles that fade in and out on a square grid. So
 - Everything is adjustable from the screen saver's Options panel.
 - Universal binary for Apple Silicon and Intel Macs; animation runs on Core Animation, so CPU use stays negligible even on 5K displays.
 
-## Requirements
+## Install
 
-- macOS 12 Monterey or later
-- Xcode or the Xcode Command Line Tools (`xcode-select --install`) to build
+Requires macOS 12 Monterey or later, on Apple Silicon or Intel.
 
-## Build and install
+1. Download `CodeTiles-<version>.pkg` from the [latest release](https://github.com/charlie-f/codetiles/releases/latest).
+2. Open it and follow the installer. Choose *Install for me only* to skip the admin password.
+3. Open **System Settings → Screen Saver**, choose **Code Tiles** under *Other*, and click **Options…** to adjust it.
+
+The installer is signed with a Developer ID and notarized by Apple.
+
+## Build from source
+
+Needs Xcode or the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
 git clone https://github.com/charlie-f/codetiles.git
@@ -28,9 +35,7 @@ cd codetiles/macOS
 ./build.sh install
 ```
 
-`./build.sh` on its own builds `macOS/build/CodeTiles.saver` without installing it. `install` copies it to `~/Library/Screen Savers` and restarts the macOS screen saver host so the new build is picked up.
-
-Then open **System Settings → Screen Saver**, choose **Code Tiles** under *Other*, and click **Options…** to adjust it.
+`./build.sh` on its own builds `macOS/build/CodeTiles.saver` without installing it. `install` copies it to `~/Library/Screen Savers` and restarts the macOS screen saver host so the new build is picked up. A build made this way is ad-hoc signed, so it runs on the Mac that built it but not on other Macs.
 
 ## Options
 
@@ -49,13 +54,43 @@ Then open **System Settings → Screen Saver**, choose **Code Tiles** under *Oth
 
 ## Uninstall
 
+Delete `CodeTiles.saver` from whichever folder it was installed to:
+
 ```bash
 rm -rf ~/Library/Screen\ Savers/CodeTiles.saver
 ```
+```bash
+sudo rm -rf /Library/Screen\ Savers/CodeTiles.saver
+```
+
+The first is a *for me only* install (or `./build.sh install`); the second is an install for all users.
+
+## Making a release
+
+1. Bump `CFBundleShortVersionString` and `CFBundleVersion` in `macOS/Info.plist`.
+2. Build the signed, notarized installer:
+
+   ```bash
+   cd macOS
+   ./package.sh --release
+   ```
+
+   This needs, in your login keychain, a *Developer ID Application* and a *Developer ID Installer* certificate, plus notarization credentials saved once with:
+
+   ```bash
+   xcrun notarytool store-credentials codetiles-notary --apple-id <your Apple ID> --team-id <your Team ID>
+   ```
+
+3. Publish it:
+
+   ```bash
+   gh release create v<version> dist/CodeTiles-<version>.pkg --title "Code Tiles <version>" --generate-notes
+   ```
+
+`./package.sh` without `--release` makes an unsigned installer for local testing only.
 
 ## Notes
 
-- The build is ad-hoc signed, which is enough to run it on the Mac that built it. A pre-built `.saver` downloaded by someone else will be blocked by Gatekeeper unless it is signed with a Developer ID and notarized; building from source avoids this.
 - On macOS 14 and later the system keeps stopped screen saver instances running in the background. Code Tiles quits its process shortly after the screen saver stops to avoid that.
 
 ## Project layout
@@ -63,6 +98,7 @@ rm -rf ~/Library/Screen\ Savers/CodeTiles.saver
 ```
 macOS/
   build.sh                 build, sign and optionally install
+  package.sh               build the .pkg installer (signed and notarized with --release)
   Info.plist               bundle metadata
   Resources/               thumbnails shown in System Settings
   Sources/
