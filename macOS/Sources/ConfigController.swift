@@ -70,9 +70,10 @@ final class ConfigController: NSObject {
         extensionsField.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         extensionsField.lineBreakMode = .byTruncatingTail
 
-        let hint = NSTextField(wrappingLabelWithString: "Separate with spaces or commas. Any text works, e.g. .json .toml if()")
+        let hint = NSTextField(wrappingLabelWithString: "Separate with spaces or commas, up to 64 entries of 16 characters each. Any text works, e.g. .json .toml if()")
         hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         hint.textColor = .secondaryLabelColor
+        hint.preferredMaxLayoutWidth = 360
 
         let empty = NSGridCell.emptyContentView
         let grid = NSGridView(views: [

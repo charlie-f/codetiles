@@ -222,8 +222,10 @@ final class CodeTilesView: ScreenSaverView {
             t.truncationMode = .end
             t.isWrapped = false
             t.contentsScale = s
-            let y = ((frame.midY - label.height / 2) * s).rounded() / s
-            t.frame = CGRect(x: frame.minX, y: y, width: frame.width, height: label.height)
+            t.masksToBounds = true
+            let height = min(label.height, frame.height)
+            let y = ((frame.midY - height / 2) * s).rounded() / s
+            t.frame = CGRect(x: frame.minX, y: y, width: frame.width, height: height)
             t.opacity = 0
             root.addSublayer(t)
             text = t

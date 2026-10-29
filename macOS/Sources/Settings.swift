@@ -12,7 +12,10 @@ struct Settings: Equatable {
     static let labelRange = 0.0...1.0
     static let fadeRange = 0.05...3.0
     static let maxExtensions = 64
-    static let maxExtensionLength = 32
+    // Past 16 characters a label shrinks below a readable size on a full-screen tile.
+    static let maxExtensionLength = 16
+    // A single character can carry thousands of combining marks, so bound code points too.
+    static let maxExtensionCodePoints = 48
 
     // Fade defaults were measured from the reference video (30 fps): fade-in ~21 frames, fade-out ~24 frames.
     static let standard = Settings(
@@ -88,10 +91,32 @@ struct Settings: Equatable {
         var seen = Set<String>()
         return Array(
             list
-                .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxExtensionLength)) }
+                .map(clean)
                 .filter { !$0.isEmpty && seen.insert($0).inserted }
                 .prefix(maxExtensions)
         )
+    }
+
+    private static func clean(_ raw: String) -> String {
+        var result = ""
+        var characters = 0
+        var codePoints = 0
+        for character in raw.trimmingCharacters(in: .whitespacesAndNewlines) {
+            let kept = character.unicodeScalars.filter { !isInvisible($0) }
+            if kept.isEmpty { continue }
+            guard characters < maxExtensionLength, codePoints + kept.count <= maxExtensionCodePoints else { break }
+            result.unicodeScalars.append(contentsOf: kept)
+            characters += 1
+            codePoints += kept.count
+        }
+        return result
+    }
+
+    // Control characters and text-direction overrides draw nothing useful and can garble a label.
+    private static func isInvisible(_ scalar: Unicode.Scalar) -> Bool {
+        scalar.properties.generalCategory == .control
+            || (0x202A...0x202E).contains(scalar.value)
+            || (0x2066...0x2069).contains(scalar.value)
     }
 }
 

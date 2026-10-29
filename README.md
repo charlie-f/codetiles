@@ -48,7 +48,7 @@ cd codetiles/macOS
 | Fade in | 0.05–3 s | 0.70 s | How long a tile takes to appear |
 | Fade out | 0.05–3 s | 0.80 s | How long a tile takes to disappear |
 | Appearance | on / off | off | Dark mode: black background instead of off-white |
-| Extensions | up to 64 | `.js .ts .py .rb .go .rs .c .cs .kt .sh` | Labels to show, separated by spaces or commas. Any text works, e.g. `.json .toml if()` |
+| Extensions | up to 64, 16 characters each | `.js .ts .py .rb .go .rs .c .cs .kt .sh` | Labels to show, separated by spaces or commas. Any text works, e.g. `.json .toml if()` |
 
 **Restore Defaults** resets every option.
 
