@@ -39,6 +39,8 @@ if [[ "${1:-}" == "install" ]]; then
   rm -rf "$DEST/$NAME.saver"
   cp -R "$SAVER" "$DEST/"
   # The screen saver host caches loaded bundles; restart it so the new build is picked up.
+  # System Settings must restart with it, or it keeps using the dead host and Options breaks.
+  killall "System Settings" 2>/dev/null || true
   killall legacyScreenSaver 2>/dev/null || true
   echo "Installed to $DEST/$NAME.saver"
 fi

@@ -91,7 +91,13 @@ The first is a *for me only* install (or `./build.sh install`); the second is an
 
 ## Notes
 
-- On macOS 14 and later the system keeps stopped screen saver instances running in the background. Code Tiles quits its process shortly after the screen saver stops to avoid that.
+- macOS runs the System Settings preview and the real screen saver in a shared `legacyScreenSaver` process, and the Options panel in another one. Code Tiles never quits that process itself, reads its settings fresh rather than from a cache, and broadcasts a notification when they change so every running copy updates at once.
+- The installer restarts System Settings and the screen saver host so an upgrade takes effect immediately; leaving System Settings attached to a restarted host is what breaks the Options button.
+- Code Tiles logs its lifecycle under the subsystem `com.charlie.CodeTiles`. To see what it did:
+
+  ```bash
+  /usr/bin/log show --last 10m --predicate 'subsystem == "com.charlie.CodeTiles"'
+  ```
 
 ## Project layout
 

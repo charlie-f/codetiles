@@ -179,6 +179,7 @@ final class ConfigController: NSObject {
     }
 
     private func close() {
+        logger.notice("Options closing (presented as sheet: \(self.window.sheetParent != nil, privacy: .public))")
         if let parent = window.sheetParent {
             parent.endSheet(window)
         } else {

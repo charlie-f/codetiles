@@ -1,7 +1,7 @@
 import ScreenSaver
 import os
 
-private let logger = Logger(subsystem: Bundle(for: CodeTilesView.self).bundleIdentifier ?? "CodeTiles", category: "saver")
+let logger = Logger(subsystem: Bundle(for: CodeTilesView.self).bundleIdentifier ?? "CodeTiles", category: "saver")
 
 private struct Tile {
     let cell: Int
@@ -45,56 +45,82 @@ final class CodeTilesView: ScreenSaverView {
     private var lastFrame: CFTimeInterval = 0
     private var spawnBudget = 0.0
     private var config: ConfigController?
-    private static var pendingExit: DispatchWorkItem?
+    private let instanceID: Int
+    private static var nextInstanceID = 1
+    private static var liveInstances = 0
 
     override init?(frame: NSRect, isPreview: Bool) {
+        instanceID = Self.nextInstanceID
         super.init(frame: frame, isPreview: isPreview)
         commonInit()
-
-        // Since Sonoma the legacyScreenSaver host keeps stopped instances alive and stacks new ones;
-        // quitting on willstop is the standard workaround.
-        if !isPreview {
-            DistributedNotificationCenter.default().addObserver(
-                self,
-                selector: #selector(screenSaverWillStop),
-                name: Notification.Name("com.apple.screensaver.willstop"),
-                object: nil
-            )
-        }
     }
 
     required init?(coder: NSCoder) {
+        instanceID = Self.nextInstanceID
         super.init(coder: coder)
         commonInit()
     }
 
     private func commonInit() {
+        Self.nextInstanceID += 1
+        Self.liveInstances += 1
         animationTimeInterval = 1.0 / 60.0
         wantsLayer = true
         layoutGrid()
+        applyBackground()
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(settingsChanged), name: Settings.changedNotification, object: nil
+        )
+        let version = Bundle(for: Self.self).infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        logger.notice("""
+            Instance \(self.instanceID, privacy: .public) created (build \(version, privacy: .public), \
+            preview: \(self.isPreview, privacy: .public), size: \(Int(self.bounds.width), privacy: .public)x\(Int(self.bounds.height), privacy: .public), \
+            live in process: \(Self.liveInstances, privacy: .public), \
+            bundle: \(Bundle(for: Self.self).bundlePath, privacy: .public))
+            """)
     }
 
     deinit {
+        Self.liveInstances -= 1
         DistributedNotificationCenter.default().removeObserver(self)
+        logger.notice("Instance \(self.instanceID, privacy: .public) released (live in process: \(Self.liveInstances, privacy: .public))")
     }
 
-    @objc private func screenSaverWillStop(_ note: Notification) {
-        logger.notice("Screen saver stopping; host process will exit in 2 s")
-        Self.pendingExit?.cancel()
-        let work = DispatchWorkItem { exit(0) }
-        Self.pendingExit = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+    @objc private func settingsChanged(_ note: Notification) {
+        apply(Settings.load())
+    }
+
+    private func apply(_ newSettings: Settings) {
+        settings = newSettings
+        buildLabels()
+        applyBackground()
+        logger.notice("Instance \(self.instanceID, privacy: .public) applied settings (dark: \(newSettings.darkMode, privacy: .public))")
+    }
+
+    private func applyBackground() {
+        layer?.backgroundColor = Palette.background(dark: settings.darkMode).cgColor
+        needsDisplay = true
     }
 
     override func startAnimation() {
-        // The saver can restart within the exit grace period; don't kill the new session.
-        Self.pendingExit?.cancel()
-        Self.pendingExit = nil
         settings = Settings.load()
         buildLabels()
-        needsDisplay = true
+        applyBackground()
         lastFrame = 0
         super.startAnimation()
+        logger.notice("Instance \(self.instanceID, privacy: .public) started (dark: \(self.settings.darkMode, privacy: .public))")
+    }
+
+    override func stopAnimation() {
+        super.stopAnimation()
+        logger.notice("Instance \(self.instanceID, privacy: .public) stopped")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        logger.notice("Instance \(self.instanceID, privacy: .public) \(self.window == nil ? "removed from window" : "moved to window", privacy: .public)")
+        // A view taken off screen must not keep animating, even if the host never calls stopAnimation.
+        if window == nil, isAnimating { stopAnimation() }
     }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -270,14 +296,12 @@ final class CodeTilesView: ScreenSaverView {
     override var hasConfigureSheet: Bool { true }
 
     override var configureSheet: NSWindow? {
-        logger.notice("Options sheet requested (preview: \(self.isPreview, privacy: .public))")
+        logger.notice("Instance \(self.instanceID, privacy: .public) Options sheet requested")
         // The System Settings host tears down the window it presented, so a reused
         // window can't be shown again; build a fresh one every time.
         let controller = ConfigController()
         controller.show(Settings.load()) { [weak self] saved in
-            self?.settings = saved
-            self?.buildLabels()
-            self?.needsDisplay = true
+            self?.apply(saved)
         }
         config = controller
         return controller.window

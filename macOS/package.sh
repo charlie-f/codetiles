@@ -53,7 +53,9 @@ pkgbuild --analyze --root "$WORK/root" "$WORK/component.plist" >/dev/null
 
 cat > "$WORK/scripts/postinstall" <<'EOF'
 #!/bin/bash
-# Restart the screen saver host so an upgraded bundle is picked up.
+# Restart the screen saver host so an upgraded bundle is picked up. System Settings has to go
+# too: if it stays open it keeps talking to the killed host and Options stops opening.
+killall "System Settings" 2>/dev/null || true
 killall legacyScreenSaver 2>/dev/null || true
 exit 0
 EOF

@@ -1,4 +1,4 @@
-import ScreenSaver
+import Foundation
 
 struct Settings: Equatable {
     var density: Double
@@ -24,19 +24,11 @@ struct Settings: Equatable {
         darkMode: false
     )
 
-    private static let store: ScreenSaverDefaults = {
-        let id = Bundle(for: CodeTilesView.self).bundleIdentifier ?? "com.charlie.CodeTiles"
-        let d = ScreenSaverDefaults(forModuleWithName: id)!
-        d.register(defaults: [
-            Key.density: standard.density,
-            Key.labelFraction: standard.labelFraction,
-            Key.fadeIn: standard.fadeIn,
-            Key.fadeOut: standard.fadeOut,
-            Key.extensions: standard.extensions,
-            Key.darkMode: standard.darkMode,
-        ])
-        return d
-    }()
+    // Same per-host domain ScreenSaverDefaults uses, accessed through CFPreferences so reads
+    // can be forced past this process's cache (Options runs in a different process).
+    private static let domain = (Bundle(for: CodeTilesView.self).bundleIdentifier ?? "com.charlie.CodeTiles") as CFString
+
+    static let changedNotification = Notification.Name("com.charlie.CodeTiles.settingsChanged")
 
     private enum Key {
         static let density = "density"
@@ -48,32 +40,44 @@ struct Settings: Equatable {
     }
 
     static func load() -> Settings {
-        let d = store
+        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
         return Settings(
-            density: number(d, Key.density, standard.density, densityRange),
-            labelFraction: number(d, Key.labelFraction, standard.labelFraction, labelRange),
-            fadeIn: number(d, Key.fadeIn, standard.fadeIn, fadeRange),
-            fadeOut: number(d, Key.fadeOut, standard.fadeOut, fadeRange),
-            extensions: sanitize(d.stringArray(forKey: Key.extensions) ?? standard.extensions),
-            darkMode: d.bool(forKey: Key.darkMode)
+            density: number(Key.density, standard.density, densityRange),
+            labelFraction: number(Key.labelFraction, standard.labelFraction, labelRange),
+            fadeIn: number(Key.fadeIn, standard.fadeIn, fadeRange),
+            fadeOut: number(Key.fadeOut, standard.fadeOut, fadeRange),
+            extensions: (value(Key.extensions) as? [String]).map(sanitize) ?? standard.extensions,
+            darkMode: (value(Key.darkMode) as? NSNumber)?.boolValue ?? standard.darkMode
         )
     }
 
+    private static func value(_ key: String) -> Any? {
+        CFPreferencesCopyValue(key as CFString, domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+    }
+
     // The prefs file is user-editable, so NaN/infinity must not reach the animation timing.
-    private static func number(_ d: UserDefaults, _ key: String, _ fallback: Double, _ range: ClosedRange<Double>) -> Double {
-        let value = d.double(forKey: key)
-        return value.isFinite ? value.clamped(to: range) : fallback
+    private static func number(_ key: String, _ fallback: Double, _ range: ClosedRange<Double>) -> Double {
+        guard let number = (value(key) as? NSNumber)?.doubleValue, number.isFinite else { return fallback }
+        return number.clamped(to: range)
     }
 
     func save() {
-        let d = Settings.store
-        d.set(density, forKey: Key.density)
-        d.set(labelFraction, forKey: Key.labelFraction)
-        d.set(fadeIn, forKey: Key.fadeIn)
-        d.set(fadeOut, forKey: Key.fadeOut)
-        d.set(extensions, forKey: Key.extensions)
-        d.set(darkMode, forKey: Key.darkMode)
-        d.synchronize()
+        let values: [String: Any] = [
+            Key.density: density,
+            Key.labelFraction: labelFraction,
+            Key.fadeIn: fadeIn,
+            Key.fadeOut: fadeOut,
+            Key.extensions: extensions,
+            Key.darkMode: darkMode,
+        ]
+        for (key, value) in values {
+            CFPreferencesSetValue(key as CFString, value as CFPropertyList, Settings.domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        }
+        CFPreferencesSynchronize(Settings.domain, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        // Tell every running instance (the System Settings preview lives in another process).
+        DistributedNotificationCenter.default().postNotificationName(
+            Settings.changedNotification, object: nil, userInfo: nil, deliverImmediately: true
+        )
     }
 
     static func parseExtensions(_ text: String) -> [String] {
